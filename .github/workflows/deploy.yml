@@ -1,0 +1,43 @@
+name: Deploy MeetInc to Firebase Hosting
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-hosting-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy live site
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: meetinc-9072a
+          workload_identity_provider: projects/802867466895/locations/global/workloadIdentityPools/meetinc-github-actions/providers/meetinc-github-actions
+          service_account: meetinc-github-deploy@meetinc-9072a.iam.gserviceaccount.com
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools@15.37.0
+
+      - name: Deploy Firebase Hosting
+        run: firebase deploy --only hosting --project meetinc-9072a --non-interactive

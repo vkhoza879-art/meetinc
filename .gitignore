@@ -1,0 +1,11 @@
+.firebase/
+node_modules/
+functions/node_modules/
+functions/.env*
+.env
+.env.*
+!.env.example
+service-account*.json
+*-firebase-adminsdk-*.json
+MeetInc-customer-promo.mp4
+MeetInc-promo-*.png

@@ -146,7 +146,7 @@ Fill-RoundRect $s.Graphics 72 675 936 565 36 $colors.deep; Fill-RoundRect $s.Gra
 $pen = [System.Drawing.Pen]::new($colors.gold,10); $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round; $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round; $s.Graphics.DrawLines($pen,[System.Drawing.PointF[]]@([System.Drawing.PointF]::new(152,763),[System.Drawing.PointF]::new(170,806),[System.Drawing.PointF]::new(194,762))); $pen.Dispose()
 Draw-Text $s.Graphics 'MeetInc' 257 751 55 $colors.white $true; Draw-Text $s.Graphics 'Good things happen' 126 890 53 $colors.white $true; Draw-Text $s.Graphics 'when you meet.' 126 956 53 $colors.white $true
 Draw-Wrap $s.Graphics 'Start with a business, an idea, and a time that works.' 126 1052 790 25 ([System.Drawing.ColorTranslator]::FromHtml('#DCE9DE'))
-Draw-Button $s.Graphics 'Find your next appointment  →' 126 1150 610; Draw-Text $s.Graphics 'meetinc-9072a.web.app' 126 1300 24 $colors.deep $true
+Draw-Button $s.Graphics 'Find your next appointment  →' 126 1150 610; Draw-Text $s.Graphics 'meetinc.web.app' 126 1300 24 $colors.deep $true
 Save-Scene $s 'scene-07.png'
 
 Write-Output "Rendered seven promo scenes to $assetDir"

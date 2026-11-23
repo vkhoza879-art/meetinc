@@ -13,7 +13,7 @@ const platformFee = defineString('MEETINC_FEE_PERCENT');
 const feeBearerSetting = defineString('MEETINC_PAYSTACK_FEE_BEARER');
 const region = 'africa-south1';
 const paystackApi = 'https://api.paystack.co';
-const webAppUrl = 'https://meetinc-9072a.web.app/';
+const webAppUrl = 'https://meetinc.web.app/';
 
 async function notifyUser(uid, title, body, tag, { type = 'update', urgent = false } = {}) {
   const tokens = await db.collection('pushTokens').where('ownerUid', '==', uid).get();
@@ -490,7 +490,7 @@ exports.createPaymentCheckout = onCall({ region, secrets: [paystackSecret], memo
       reference,
       subaccount: payout.data().subaccountCode,
       bearer: feeBearer(),
-      callback_url: 'https://meetinc-9072a.web.app/?payment=return',
+      callback_url: 'https://meetinc.web.app/?payment=return',
       metadata: { bookingId, businessId: booking.businessId, customerUid: request.auth.uid }
     }) });
     await paymentRef.update({ status: 'Pending', authorizationUrl: data.authorization_url });

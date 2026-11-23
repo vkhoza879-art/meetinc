@@ -1,5 +1,5 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://meetinc-9072a.web.app/sitemap.txt
-Sitemap: https://meetinc-9072a.web.app/sitemap.xml
+Sitemap: https://meetinc.web.app/sitemap.txt
+Sitemap: https://meetinc.web.app/sitemap.xml

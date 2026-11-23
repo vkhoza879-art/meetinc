@@ -48,7 +48,7 @@ firebase deploy --only firestore:rules --project meetinc-9072a
 firebase deploy --only hosting --project meetinc-9072a
 ```
 
-Then visit `https://meetinc-9072a.web.app`. Booking requests require the `createBooking`, `getAvailableBookingSlots` and `manageBooking` Cloud Functions to be deployed, plus the Firestore index and rules. The project must have active billing for Cloud Functions. For a local hosting preview, run `firebase emulators:start --only hosting,auth,firestore,functions` after configuring local Firebase emulators. The app currently points to the live MeetInc Firebase project, so locally created accounts and requests are live project data.
+Then visit `https://meetinc.web.app`. Booking requests require the `createBooking`, `getAvailableBookingSlots` and `manageBooking` Cloud Functions to be deployed, plus the Firestore index and rules. The project must have active billing for Cloud Functions. For a local hosting preview, run `firebase emulators:start --only hosting,auth,firestore,functions` after configuring local Firebase emulators. The app currently points to the live MeetInc Firebase project, so locally created accounts and requests are live project data.
 
 ## Customer payments (prepared, not yet live)
 
@@ -71,7 +71,7 @@ Never put a Paystack secret in `public/app.js`, website HTML, or a public reposi
 - Android/iOS Capacitor project setup is documented in the Native mobile app section; app store distribution still requires platform-specific signing and store accounts.
 - The same opening and closing time applies to every selected working day. Businesses can set working days, meeting length and appointment-start interval.
 - Booking functions run in `africa-south1` and interpret business dates and times in South Africa time (`Africa/Johannesburg`).
-- Firebase Hosting is live at `https://meetinc-9072a.web.app`.
+- Firebase Hosting is live at `https://meetinc.web.app`.
 - Branding is MeetInc with the V mark. Payments are not live until Firebase billing, Paystack credentials, webhook setup and the platform fee are configured.
 - Search crawler guidance is published in `public/robots.txt`, with the public landing page listed in `public/sitemap.xml`. Ownership was verified in Google Search Console and the sitemap was submitted. Search Console initially reported it could not read the sitemap even though the public URL returns successfully; Google may need time to retry it.
 - Google Search Console reported the homepage is not yet indexed. A manual indexing request could not be submitted because the account hit Google's daily request quota; retry the request tomorrow in URL Inspection.

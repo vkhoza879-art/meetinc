@@ -31,16 +31,16 @@ jobs:
           workload_identity_provider: projects/802867466895/locations/global/workloadIdentityPools/meetinc-github-actions/providers/meetinc-github-actions
           service_account: meetinc-github-deploy@meetinc-9072a.iam.gserviceaccount.com
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.25.0
 
       - name: Install app dependencies
         run: pnpm install --frozen-lockfile

@@ -128,22 +128,15 @@ service cloud.firestore {
       }
     }
 
-    // Bookings are visible only to their customer and the business. Customers create requests;
-    // businesses may change only status and agreed time fields.
+    // Booking records and slot reservations are written through callable functions so
+    // availability checks and reservation changes commit atomically on the server.
     match /bookings/{bookingId} {
-      allow create: if userRole('customer')
-        && request.resource.data.customerUid == request.auth.uid
-        && exists(/databases/$(database)/documents/businesses/$(request.resource.data.businessId))
-        && validBooking();
       allow get, list: if canReadBooking(resource.data);
-      allow update: if userRole('business')
-        && resource.data.businessId == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'confirmedDate', 'confirmedTime', 'updatedAt'])
-        && request.resource.data.status in ['Pending', 'Confirmed', 'Declined']
-        && request.resource.data.confirmedDate is string && request.resource.data.confirmedDate.size() <= 10
-        && request.resource.data.confirmedTime is string && (request.resource.data.confirmedTime == '' || request.resource.data.confirmedTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'))
-        && request.resource.data.updatedAt is timestamp;
-      allow delete: if false;
+      allow create, update, delete: if false;
+      match /events/{eventId} {
+        allow get, list: if canReadBooking(get(/databases/$(database)/documents/bookings/$(bookingId)).data);
+        allow create, update, delete: if false;
+      }
       match /calls/{callId} {
         function booking() { return get(/databases/$(database)/documents/bookings/$(bookingId)).data; }
         function callParticipant(data) {
@@ -210,6 +203,12 @@ service cloud.firestore {
         allow create: if canReadBooking(parentBooking()) && validMessage();
         allow update, delete: if false;
       }
+    }
+
+    // Slot locks are private to server code. Admin SDK calls from Cloud Functions
+    // bypass these rules, while clients cannot manufacture or remove reservations.
+    match /bookingSlots/{slotId} {
+      allow read, write: if false;
     }
 
     // Payout configuration is created only by trusted server code; an owner can inspect status.

@@ -35,17 +35,20 @@ The Android and iOS app IDs are registered in Firebase. Their Firebase client co
 
 ## Data access
 
-The Firestore rules allow signed-in customers to discover business profiles and offers. Users can read and update only permitted fields on their own account record; their account type cannot be changed. Business profile pictures are part of the public business listing. A customer's picture is shared with a business only on that customer's booking requests. A customer can create a request under their own account; only the customer and selected business can read it. The business can update appointment status and agreed time fields. Chat messages can be read and created only by either participant. Uploaded profile pictures are resized and compressed in the browser before saving. Client-side writes are validated for field names, image format and length. The GitHub workflow deploys Hosting and notification functions. Firestore rules are deployed separately with `firebase deploy --only firestore:rules` because the current GitHub deployment identity lacks Firebase Rules permissions.
+The Firestore rules allow signed-in customers to discover business profiles and offers. Users can read and update only permitted fields on their own account record; their account type cannot be changed. Business profile pictures are part of the public business listing. A customer's picture is shared with a business only on that customer's booking requests. Only the customer and selected business can read a booking. Booking creation, confirmation, rejection, cancellation and rescheduling go through authenticated Cloud Functions. The server validates working hours and future dates, and a Firestore transaction reserves a deterministic business/date/time lock so overlapping requests cannot claim the same slot. Availability is read from the server; clients cannot write booking records, slot locks or booking-history events. Both participants can read the event history and chat messages. The deployment workflow publishes the booking and notification functions, Firestore index, security rules, and Hosting in that order. It requires an active Cloud Billing account and a GitHub deploy identity with permission to deploy functions, indexes and rules. If that identity lacks Firestore Rules permissions, the workflow stops before publishing the new frontend.
 
 ## Run locally
 
 Serve the `public/` folder over HTTP or HTTPS. Opening `index.html` as a `file://` URL will not load Firebase module imports correctly. On a computer with Node.js and Firebase CLI installed, from this folder run:
 
 ```powershell
-firebase deploy --only firestore:rules,hosting
+firebase deploy --only firestore:indexes --project meetinc-9072a
+firebase deploy --only functions:getAvailableBookingSlots,functions:createBooking,functions:manageBooking,functions:notifyNewBooking,functions:notifyBookingUpdates,functions:notifyNewMessage,functions:notifyIncomingCall --project meetinc-9072a
+firebase deploy --only firestore:rules --project meetinc-9072a
+firebase deploy --only hosting --project meetinc-9072a
 ```
 
-Then visit `https://meetinc-9072a.web.app`. For a local hosting preview, run `firebase emulators:start --only hosting,auth,firestore` after configuring local Firebase emulators. The app currently points to the live MeetInc Firebase project, so locally created accounts and requests are live project data.
+Then visit `https://meetinc-9072a.web.app`. Booking requests require the `createBooking`, `getAvailableBookingSlots` and `manageBooking` Cloud Functions to be deployed, plus the Firestore index and rules. The project must have active billing for Cloud Functions. For a local hosting preview, run `firebase emulators:start --only hosting,auth,firestore,functions` after configuring local Firebase emulators. The app currently points to the live MeetInc Firebase project, so locally created accounts and requests are live project data.
 
 ## Customer payments (prepared, not yet live)
 
@@ -66,7 +69,8 @@ Never put a Paystack secret in `public/app.js`, website HTML, or a public reposi
 - Voice calls use the microphone and WebRTC after both participants grant permission. Calls work best when both users are online; restrictive networks may require a TURN relay. In-app ringing works while MeetInc is open; background calls use a push alert rather than CallKit/Android Telecom integration.
 - Push delivery requires the notification Cloud Functions deployment to succeed and each device to opt in. Android installed-app channel changes require a newly built APK.
 - Android/iOS Capacitor project setup is documented in the Native mobile app section; app store distribution still requires platform-specific signing and store accounts.
-- Customers suggest a time; businesses confirm or decline the request. This first version does not reserve a time slot against overlapping requests automatically.
+- The same opening and closing time applies to every selected working day. Businesses can set working days, meeting length and appointment-start interval.
+- Booking functions run in `africa-south1` and interpret business dates and times in South Africa time (`Africa/Johannesburg`).
 - Firebase Hosting is live at `https://meetinc-9072a.web.app`.
 - Branding is MeetInc with the V mark. Payments are not live until Firebase billing, Paystack credentials, webhook setup and the platform fee are configured.
 - Search crawler guidance is published in `public/robots.txt`, with the public landing page listed in `public/sitemap.xml`. Ownership was verified in Google Search Console and the sitemap was submitted. Search Console initially reported it could not read the sitemap even though the public URL returns successfully; Google may need time to retry it.

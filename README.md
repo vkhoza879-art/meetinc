@@ -10,6 +10,21 @@ After a real booking, customers and businesses can place browser-based voice cal
 
 Users can choose **Enable push notifications** in the app to allow browser notifications. New bookings, messages, and incoming calls are sent through Firebase Cloud Messaging using Cloud Functions. Background delivery requires browser notification permission and the device's push service to be available. Signing out removes that browser's subscription from the account. The Cloud Functions deployment is currently pending because Google Cloud reports the project's billing account is not open; activate billing before deploying the notification functions with `firebase deploy --only functions:notifyNewBooking,functions:notifyNewMessage,functions:notifyIncomingCall`.
 
+## Native mobile app
+
+MeetInc is packaged for Android and iOS with Capacitor. The native shells include the same MeetInc experience and use the native push plugin; the Firebase notification functions can send to either web or native device tokens.
+
+Requirements: Node.js 22+, Android Studio and an Android SDK for local Android builds, and macOS with Xcode for iOS builds. From the project folder:
+
+```powershell
+pnpm install
+pnpm run native:add:android
+pnpm run native:prepare
+pnpm run native:open:android
+```
+
+The Android and iOS app IDs are registered in Firebase. Their Firebase client configuration files are downloaded into the native projects but intentionally kept out of Git. On a new checkout, create them with `firebase apps:sdkconfig ANDROID 1:802867466895:android:1d2ea1a53b7ec5a16656fa --out android/app/google-services.json` and `firebase apps:sdkconfig IOS 1:802867466895:ios:7f9fac5fe063effd6656fa --out ios/App/App/GoogleService-Info.plist`. Firestore rules protect customer data. Native push still needs the Firebase notification functions deployed, and iOS push additionally needs an Apple Push Notifications key configured in Firebase and an Apple Developer account. The Android workflow creates a debug APK artifact on GitHub Actions; download it from the latest **Build MeetInc Android app** run to install it manually. Google Play release requires a signed Android App Bundle; App Store release requires a signed archive from macOS/Xcode and the respective developer accounts. Store submissions are not automated yet.
+
 ## Firebase project
 
 - Project: `meetinc-9072a` (MeetInc)
@@ -50,6 +65,7 @@ Never put a Paystack secret in `public/app.js`, website HTML, or a public reposi
 
 - Voice calls use the microphone and WebRTC after both participants grant permission. Calls work best when both users are online; restrictive networks may require a TURN relay.
 - Push notification setup is present, but background delivery remains unavailable until the Firebase notification functions deploy successfully.
+- Android/iOS Capacitor project setup is documented in the Native mobile app section; app store distribution still requires platform-specific signing and store accounts.
 - Customers suggest a time; businesses confirm or decline the request. This first version does not reserve a time slot against overlapping requests automatically.
 - Firebase Hosting is live at `https://meetinc-9072a.web.app`.
 - Branding is MeetInc with the V mark. Payments are not live until Firebase billing, Paystack credentials, webhook setup and the platform fee are configured.

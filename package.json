@@ -1,0 +1,28 @@
+{
+  "name": "meetinc-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MeetInc native mobile packaging",
+  "scripts": {
+    "native:bundle": "esbuild native/native-push.js --bundle --format=esm --platform=browser --outfile=public/native-push.bundle.js",
+    "native:sync": "pnpm run native:bundle && node native/sync-capacitor.mjs",
+    "native:icons": "node native/create-app-icons.mjs && capacitor-assets generate --android --ios",
+    "native:prepare": "pnpm run native:icons && pnpm run native:sync",
+    "native:add:android": "cap add android",
+    "native:add:ios": "cap add ios",
+    "native:open:android": "cap open android",
+    "native:open:ios": "cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
+    "@capacitor-firebase/messaging": "^8.6.0",
+    "firebase": "^13.4.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/assets": "^4.0.0",
+    "esbuild": "^0.27.0"
+  }
+}

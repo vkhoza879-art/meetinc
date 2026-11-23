@@ -1,3 +1,19 @@
+// Register the click handler before Firebase Messaging so it can preserve the
+// MeetInc destination for background notifications.
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || '/', self.location.origin);
+  if (target.origin !== self.location.origin) target.href = self.location.origin + '/';
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+    const existing = clients.find(client => new URL(client.url).origin === self.location.origin);
+    if (existing) {
+      existing.navigate(target.href);
+      return existing.focus();
+    }
+    return self.clients.openWindow(target.href);
+  }));
+});
+
 importScripts('https://www.gstatic.com/firebasejs/13.4.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/13.4.0/firebase-messaging-compat.js');
 
@@ -13,6 +29,8 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage(payload => {
+  // Notification messages are displayed automatically by FCM in the background.
+  if (payload.notification) return;
   const data = payload.data || {};
   const title = data.title || 'MeetInc update';
   return self.registration.showNotification(title, {
@@ -20,18 +38,4 @@ messaging.onBackgroundMessage(payload => {
     tag: data.tag || 'meetinc-update',
     data: { url: data.url || self.location.origin + '/' }
   });
-});
-
-self.addEventListener('notificationclick', event => {
-  event.notification.close();
-  const target = new URL(event.notification.data?.url || '/', self.location.origin);
-  if (target.origin !== self.location.origin) target.href = self.location.origin + '/';
-  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
-    const existing = clients.find(client => new URL(client.url).origin === self.location.origin);
-    if (existing) {
-      existing.navigate(target.href);
-      return existing.focus();
-    }
-    return self.clients.openWindow(target.href);
-  }));
 });

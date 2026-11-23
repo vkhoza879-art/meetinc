@@ -22,8 +22,13 @@ async function notifyUser(uid, title, body, tag) {
     const batch = tokens.docs.slice(i, i + 500);
     const result = await getMessaging().sendEachForMulticast({
       tokens: batch.map(d => d.data().token),
+      notification: { title, body },
       data: { title, body, tag, url: webAppUrl },
-      webpush: { headers: { Urgency: 'high', TTL: '3600' } }
+      webpush: {
+        headers: { Urgency: 'high', TTL: '3600' },
+        notification: { tag, icon: `${webAppUrl}icons/meetinc.svg` },
+        fcmOptions: { link: webAppUrl }
+      }
     });
     const stale = result.responses.flatMap((response, index) => response.success ? [] :
       ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error?.code) ? [batch[index].ref] : []);

@@ -1,4 +1,5 @@
 .firebase/
+/node_modules/
 node_modules/
 functions/node_modules/
 functions/.env*
@@ -7,5 +8,14 @@ functions/.env*
 !.env.example
 service-account*.json
 *-firebase-adminsdk-*.json
+android/app/google-services.json
+ios/App/App/GoogleService-Info.plist
 MeetInc-customer-promo.mp4
 MeetInc-promo-*.png
+public/native-push.bundle.js
+android/.gradle/
+android/local.properties
+android/app/release.keystore
+ios/App/Pods/
+ios/App/build/
+ios/App/CapApp-SPM/symlinks/

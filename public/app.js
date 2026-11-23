@@ -41,22 +41,29 @@ const initials = value => String(value || 'V').trim().split(/\s+/).slice(0,2).ma
 function toast(message){ const el=$('toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.classList.remove('show'),2600); }
 function friendlyError(error){ const map={'auth/email-already-in-use':'That email already has an account. Choose Sign in.','auth/invalid-credential':'Email or password is incorrect.','auth/weak-password':'Choose a password with at least 8 characters.','auth/network-request-failed':'Network connection failed. Check your connection and retry.','permission-denied':'This action is not allowed for this account.','unavailable':'MeetInc could not reach Firebase. Try again shortly.'}; return map[error?.code] || error?.message || 'Something went wrong. Please try again.'; }
 async function pushTokenDocumentId(token){const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));return [...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,'0')).join('');}
+async function savePushToken(token){const id=await pushTokenDocumentId(token);await setDoc(doc(db,'pushTokens',id),{ownerUid:state.user.uid,token,updatedAt:serverTimestamp()},{merge:true});state.pushTokenId=id;$('chatEnableAlerts').textContent='✓ Alerts are on';return true;}
 async function syncPushSubscription(requestPermission=false){
-  if(!state.user||!('Notification'in window)||!('serviceWorker'in navigator))throw new Error('Push alerts are not available in this browser.');
-  let permission=Notification.permission;
-  if(requestPermission&&permission!=='granted')permission=await Notification.requestPermission();
-  if(permission!=='granted')throw new Error('Allow notifications in your browser to receive MeetInc alerts.');
-  if(!await isSupported())throw new Error('This browser does not support push notifications.');
-  const registration=await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-  const token=await getToken(getMessaging(app),{vapidKey:FIREBASE_VAPID_KEY,serviceWorkerRegistration:registration});
+  if(!state.user)throw new Error('Sign in to enable MeetInc alerts.');
+  const nativeApp=Boolean(window.Capacitor?.isNativePlatform?.());
+  let token;
+  if(nativeApp){
+    const {registerNativePush}=await import('./native-push.bundle.js');
+    token=await registerNativePush(requestPermission);
+  }else{
+    if(!('Notification'in window)||!('serviceWorker'in navigator))throw new Error('Push alerts are not available in this browser.');
+    let permission=Notification.permission;
+    if(requestPermission&&permission!=='granted')permission=await Notification.requestPermission();
+    if(permission!=='granted')throw new Error('Allow notifications in your browser to receive MeetInc alerts.');
+    if(!await isSupported())throw new Error('This browser does not support push notifications.');
+    const registration=await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    token=await getToken(getMessaging(app),{vapidKey:FIREBASE_VAPID_KEY,serviceWorkerRegistration:registration});
+    if(!state.messaging){state.messaging=getMessaging(app);onMessage(state.messaging,()=>{});}
+  }
   if(!token)throw new Error('Could not register this device for push notifications.');
-  const id=await pushTokenDocumentId(token);
-  await setDoc(doc(db,'pushTokens',id),{ownerUid:state.user.uid,token,updatedAt:serverTimestamp()},{merge:true});
-  state.pushTokenId=id;
-  $('chatEnableAlerts').textContent='✓ Alerts are on';
-  if(!state.messaging){state.messaging=getMessaging(app);onMessage(state.messaging,()=>{});}
+  await savePushToken(token);
   return true;
 }
+window.addEventListener('meetinc-native-fcm-token',event=>{if(state.user&&typeof event.detail==='string')savePushToken(event.detail).catch(error=>console.warn('Could not refresh the native MeetInc push token.',error));});
 async function removePushSubscription(){if(!state.pushTokenId)return;try{await deleteDoc(doc(db,'pushTokens',state.pushTokenId));}catch(error){console.warn('Could not remove this device notification subscription.',error);}state.pushTokenId=null;}
 function currentCallRef(call){return doc(db,'bookings',call.bookingId,'calls',call.id);}
 function renderVoiceCallStatus(text,connected=false){$('voiceCallStatus').textContent=text;const ownCall=state.currentCall&&state.selectedChat?.id===state.currentCall.bookingId;$('startVoiceCall').hidden=Boolean(ownCall);$('endVoiceCall').hidden=!ownCall;$('voiceCallStatus').classList.toggle('call-connected',connected);}
@@ -104,7 +111,7 @@ function unreadTotal(){return [...state.unreadByBooking.values()].reduce((sum,co
 function renderNav(){ const items=navItems(); const badge=unreadTotal(); const html=items.map(([id,icon,label])=>`<button data-view="${id}" class="${id===state.view?'on':''}"><span class="ic">${icon}</span>${label}${id==='chat'&&badge?`<span class="nav-badge">${badge>9?'9+':badge}</span>`:''}</button>`).join(''); $('nav').innerHTML=html; $('mobileNav').innerHTML=items.map(([id,,label])=>`<button data-view="${id}" class="${id===state.view?'on':''}">${label}${id==='chat'&&badge?` <span class="nav-badge">${badge>9?'9+':badge}</span>`:''}</button>`).join(''); document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view)); document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>setView(b.dataset.go)); }
 function setView(view){ state.view=view; document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==view); renderNav(); if(view==='discover') loadBusinesses(); if(view==='chat') renderChatList(); window.scrollTo({top:0,behavior:'smooth'}); }
 function renderWorkspace(){ $('gate').hidden=true; $('workspace').hidden=false; $('topUser').hidden=false; $('roleBadge').textContent=state.profile.role==='business'?'Business':'Customer'; $('topName').textContent=state.profile.name; $('avatar').textContent=state.profile.role==='business' ? initials(state.profile.name) : initials(state.profile.name); $('sideCap').textContent=state.profile.role==='business'?'WORKSPACE':'CUSTOMER'; $('dashKicker').textContent=state.profile.role==='business'?'YOUR WORKSPACE':'YOUR MEETINGS'; $('welcome').textContent=`Welcome back, ${state.profile.name}.`; $('dashIntro').textContent=state.profile.role==='business'?'Here’s what’s happening with your meetings.':'Find a business, then keep track of your appointment requests here.'; $('dashAction').textContent=state.profile.role==='business'?'＋ View requests':'＋ Find a business'; $('dashAction').onclick=()=>setView(state.profile.role==='business'?'requests':'discover'); $('viewAll').onclick=()=>setView('requests'); renderNav(); setView(state.profile.role==='business'?'dashboard':'discover'); startLiveBookings(); if(state.profile.role==='business') startLiveOffers(); }
-async function handleSignedIn(user){ if(state.pendingSignup)return; state.user=user; try { const snap=await getDoc(doc(db,'users',user.uid)); if(!snap.exists()){ await signOut(auth); return; } state.profile=snap.data(); renderWorkspace(); if('Notification'in window&&Notification.permission==='granted')syncPushSubscription().catch(()=>{}); if(PAYMENTS_ENABLED&&state.profile.role==='business')loadPayoutSetup();if(PAYMENTS_ENABLED&&new URLSearchParams(location.search).has('payment'))toast('Payment is being verified. Your appointment will update once Paystack confirms it.'); } catch(error){ showGate(); toast(friendlyError(error)); } }
+async function handleSignedIn(user){ if(state.pendingSignup)return; state.user=user; try { const snap=await getDoc(doc(db,'users',user.uid)); if(!snap.exists()){ await signOut(auth); return; } state.profile=snap.data(); renderWorkspace(); if(window.Capacitor?.isNativePlatform?.()||('Notification'in window&&Notification.permission==='granted'))syncPushSubscription().catch(()=>{}); if(PAYMENTS_ENABLED&&state.profile.role==='business')loadPayoutSetup();if(PAYMENTS_ENABLED&&new URLSearchParams(location.search).has('payment'))toast('Payment is being verified. Your appointment will update once Paystack confirms it.'); } catch(error){ showGate(); toast(friendlyError(error)); } }
 onAuthStateChanged(auth, user=>{ if(!user){ state.user=null; state.profile=null; state.business=null; state.offers=[]; state.bookings=[]; clearListeners(); state.pushTokenId=null; showGate(); return; } handleSignedIn(user); });
 
 document.querySelectorAll('.rolecard').forEach(card=>card.addEventListener('click',()=>{ state.roleChoice=card.dataset.role; $('authBox').hidden=false; document.querySelectorAll('.rolecard').forEach(x=>x.hidden=true); renderAuthMode(); $('authName').focus(); }));

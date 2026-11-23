@@ -1,6 +1,6 @@
 # MeetInc
 
-MeetInc is a Firebase-backed appointment and customer-request app for small businesses. Customers create an account, browse business categories, select an offer, describe what they need, and request a meeting time with a backup time. Businesses manage their profile, prices, working hours, meeting requests, and chat. Booking and message updates sync in real time when both users are online.
+MeetInc is a Firebase-backed appointment and customer-request app for small businesses. Customers create an account, browse business categories, select an offer, describe what they need, and request a meeting time with a backup time. Businesses manage their profile, prices, working hours, meeting requests, and chat. Both roles can edit their account profile, choose a built-in avatar or upload a small profile photo, and link a Google sign-in. Booking and message updates sync in real time when both users are online.
 
 The customer directory includes fictional sample businesses with sample logo marks, hours and prices so new users can explore the experience. Sample listings are clearly labelled and their booking flow is only a preview; they are not real businesses and requests are not sent. Live listings come from business profiles created in MeetInc.
 
@@ -29,13 +29,13 @@ The Android and iOS app IDs are registered in Firebase. Their Firebase client co
 
 - Project: `meetinc-9072a` (MeetInc)
 - Firestore: Enterprise Native mode, `africa-south1` (Johannesburg)
-- Authentication: Email and password
+- Authentication: Email and password. Enable the Google provider in Firebase Authentication before using Google sign-in or account linking.
 - Hosting site: `meetinc-9072a`
 - Front-end Firebase web configuration is in `public/app.js`. Firebase web API keys identify the project; Firestore Security Rules enforce access to user and booking data.
 
 ## Data access
 
-The Firestore rules allow signed-in customers to discover business profiles and offers. Users can read only their own account record. A customer can create a request under their own account; only the customer and selected business can read it. The business can update appointment status and agreed time fields. Chat messages can be read and created only by either participant. Client-side writes are validated for field names, types, and length limits. Review the rules before broadly sharing the service.
+The Firestore rules allow signed-in customers to discover business profiles and offers. Users can read and update only permitted fields on their own account record; their account type cannot be changed. Business profile pictures are part of the public business listing. A customer's picture is shared with a business only on that customer's booking requests. A customer can create a request under their own account; only the customer and selected business can read it. The business can update appointment status and agreed time fields. Chat messages can be read and created only by either participant. Uploaded profile pictures are resized and compressed in the browser before saving. Client-side writes are validated for field names, image format and length. The GitHub Hosting workflow deploys both Hosting and Firestore rules.
 
 ## Run locally
 

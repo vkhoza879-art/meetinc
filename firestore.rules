@@ -124,6 +124,66 @@ service cloud.firestore {
         && request.resource.data.confirmedTime is string && (request.resource.data.confirmedTime == '' || request.resource.data.confirmedTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'))
         && request.resource.data.updatedAt is timestamp;
       allow delete: if false;
+      match /calls/{callId} {
+        function booking() { return get(/databases/$(database)/documents/bookings/$(bookingId)).data; }
+        function callParticipant(data) {
+          return canReadBooking(booking()) && (data.callerUid == request.auth.uid || data.calleeUid == request.auth.uid);
+        }
+        function validDescription(value) {
+          return value is map && value.keys().hasOnly(['type', 'sdp'])
+            && value.keys().hasAll(['type', 'sdp']) && value.type in ['offer', 'answer']
+            && value.sdp is string && value.sdp.size() > 0 && value.sdp.size() <= 16000;
+        }
+        allow get, list: if canReadBooking(booking());
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['callerUid', 'calleeUid', 'callerName', 'status', 'offer', 'createdAt', 'updatedAt'])
+          && request.resource.data.keys().hasAll(['callerUid', 'calleeUid', 'callerName', 'status', 'offer', 'createdAt', 'updatedAt'])
+          && canReadBooking(booking()) && request.resource.data.callerUid == request.auth.uid
+          && request.resource.data.calleeUid == (request.auth.uid == booking().customerUid ? booking().businessId : booking().customerUid)
+          && request.resource.data.callerName is string && request.resource.data.callerName.size() > 0 && request.resource.data.callerName.size() <= 80
+          && request.resource.data.status == 'ringing' && validDescription(request.resource.data.offer)
+          && request.resource.data.createdAt is timestamp && request.resource.data.updatedAt is timestamp;
+        allow update: if callParticipant(resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answer', 'status', 'updatedAt'])
+          && request.resource.data.callerUid == resource.data.callerUid
+          && request.resource.data.calleeUid == resource.data.calleeUid
+          && request.resource.data.offer == resource.data.offer
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt is timestamp
+          && ((request.auth.uid == resource.data.calleeUid && resource.data.status == 'ringing'
+              && ((request.resource.data.status == 'active' && validDescription(request.resource.data.answer))
+                || request.resource.data.status == 'declined'))
+            || (request.auth.uid == resource.data.callerUid && request.resource.data.status == 'ended')
+            || (request.auth.uid == resource.data.calleeUid && request.resource.data.status == 'ended'));
+        allow delete: if false;
+
+        match /callerCandidates/{candidateId} {
+          allow get, list: if canReadBooking(get(/databases/$(database)/documents/bookings/$(bookingId)).data);
+          allow create: if signedIn()
+            && request.auth.uid == get(/databases/$(database)/documents/bookings/$(bookingId)/calls/$(callId)).data.callerUid
+            && canReadBooking(get(/databases/$(database)/documents/bookings/$(bookingId)).data)
+            && request.resource.data.keys().hasOnly(['candidate', 'sdpMid', 'sdpMLineIndex', 'createdAt'])
+            && request.resource.data.keys().hasAll(['candidate', 'createdAt'])
+            && request.resource.data.candidate is string && request.resource.data.candidate.size() <= 4096
+            && (!('sdpMid' in request.resource.data) || request.resource.data.sdpMid == null || (request.resource.data.sdpMid is string && request.resource.data.sdpMid.size() <= 80))
+            && (!('sdpMLineIndex' in request.resource.data) || request.resource.data.sdpMLineIndex == null || request.resource.data.sdpMLineIndex is int)
+            && request.resource.data.createdAt is timestamp;
+          allow update, delete: if false;
+        }
+        match /calleeCandidates/{candidateId} {
+          allow get, list: if canReadBooking(get(/databases/$(database)/documents/bookings/$(bookingId)).data);
+          allow create: if signedIn()
+            && request.auth.uid == get(/databases/$(database)/documents/bookings/$(bookingId)/calls/$(callId)).data.calleeUid
+            && canReadBooking(get(/databases/$(database)/documents/bookings/$(bookingId)).data)
+            && request.resource.data.keys().hasOnly(['candidate', 'sdpMid', 'sdpMLineIndex', 'createdAt'])
+            && request.resource.data.keys().hasAll(['candidate', 'createdAt'])
+            && request.resource.data.candidate is string && request.resource.data.candidate.size() <= 4096
+            && (!('sdpMid' in request.resource.data) || request.resource.data.sdpMid == null || (request.resource.data.sdpMid is string && request.resource.data.sdpMid.size() <= 80))
+            && (!('sdpMLineIndex' in request.resource.data) || request.resource.data.sdpMLineIndex == null || request.resource.data.sdpMLineIndex is int)
+            && request.resource.data.createdAt is timestamp;
+          allow update, delete: if false;
+        }
+      }
       match /messages/{messageId} {
         function parentBooking() { return get(/databases/$(database)/documents/bookings/$(bookingId)).data; }
         allow get, list: if canReadBooking(parentBooking());
@@ -142,6 +202,22 @@ service cloud.firestore {
     match /payments/{reference} {
       allow get: if signedIn() && (resource.data.customerUid == request.auth.uid || resource.data.businessId == request.auth.uid);
       allow list, create, update, delete: if false;
+    }
+
+    // A signed-in account may register its own browser push subscription. The server
+    // uses ownerUid to send appointment, chat, and voice-call alerts.
+    match /pushTokens/{tokenId} {
+      function validPushToken() {
+        return request.resource.data.keys().hasOnly(['ownerUid', 'token', 'updatedAt'])
+          && request.resource.data.keys().hasAll(['ownerUid', 'token', 'updatedAt'])
+          && request.resource.data.ownerUid == request.auth.uid
+          && request.resource.data.token is string && request.resource.data.token.size() > 0 && request.resource.data.token.size() <= 4096
+          && tokenId.matches('^[0-9a-f]{64}$')
+          && request.resource.data.updatedAt is timestamp;
+      }
+      allow get, list: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create, update: if signedIn() && validPushToken();
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
     }
 
     match /{document=**} { allow read, write: if false; }

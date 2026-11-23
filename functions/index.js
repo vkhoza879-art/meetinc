@@ -1,7 +1,9 @@
 const crypto = require('node:crypto');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
+const { getMessaging } = require('firebase-admin/messaging');
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { defineSecret, defineString } = require('firebase-functions/params');
 
 initializeApp();
@@ -11,6 +13,46 @@ const platformFee = defineString('MEETINC_FEE_PERCENT');
 const feeBearerSetting = defineString('MEETINC_PAYSTACK_FEE_BEARER');
 const region = 'africa-south1';
 const paystackApi = 'https://api.paystack.co';
+const webAppUrl = 'https://meetinc-9072a.web.app/';
+
+async function notifyUser(uid, title, body, tag) {
+  const tokens = await db.collection('pushTokens').where('ownerUid', '==', uid).get();
+  if (tokens.empty) return;
+  for (let i = 0; i < tokens.docs.length; i += 500) {
+    const batch = tokens.docs.slice(i, i + 500);
+    const result = await getMessaging().sendEachForMulticast({
+      tokens: batch.map(d => d.data().token),
+      data: { title, body, tag, url: webAppUrl },
+      webpush: { headers: { Urgency: 'high', TTL: '3600' } }
+    });
+    const stale = result.responses.flatMap((response, index) => response.success ? [] :
+      ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error?.code) ? [batch[index].ref] : []);
+    if (stale.length) await Promise.all(stale.map(ref => ref.delete()));
+  }
+}
+
+exports.notifyNewBooking = onDocumentCreated({ document: 'bookings/{bookingId}', region }, async event => {
+  const booking = event.data?.data();
+  if (!booking?.businessId) return;
+  await notifyUser(booking.businessId, 'New MeetInc booking request', `${booking.customerName || 'A customer'} requested ${booking.offerName || 'an appointment'}.`, `booking-${event.params.bookingId}`);
+});
+
+exports.notifyNewMessage = onDocumentCreated({ document: 'bookings/{bookingId}/messages/{messageId}', region }, async event => {
+  const message = event.data?.data();
+  if (!message?.senderUid) return;
+  const bookingSnap = await db.doc(`bookings/${event.params.bookingId}`).get();
+  if (!bookingSnap.exists) return;
+  const booking = bookingSnap.data();
+  const recipient = message.senderUid === booking.customerUid ? booking.businessId : booking.customerUid;
+  if (!recipient || recipient === message.senderUid) return;
+  await notifyUser(recipient, `New message from ${message.senderName || 'your MeetInc contact'}`, 'Open MeetInc to read your message.', `message-${event.params.bookingId}`);
+});
+
+exports.notifyIncomingCall = onDocumentCreated({ document: 'bookings/{bookingId}/calls/{callId}', region }, async event => {
+  const call = event.data?.data();
+  if (!call || call.status !== 'ringing' || !call.calleeUid) return;
+  await notifyUser(call.calleeUid, 'Incoming MeetInc voice call', `${call.callerName || 'Your MeetInc contact'} is calling. Open MeetInc to answer.`, `call-${event.params.callId}`);
+});
 
 function feePercent() {
   const value = Number(platformFee.value());

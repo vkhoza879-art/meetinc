@@ -4,6 +4,12 @@ MeetInc is a Firebase-backed appointment and customer-request app for small busi
 
 The customer directory includes fictional sample businesses with sample logo marks, hours and prices so new users can explore the experience. Sample listings are clearly labelled and their booking flow is only a preview; they are not real businesses and requests are not sent. Live listings come from business profiles created in MeetInc.
 
+## Voice calls and push alerts
+
+After a real booking, customers and businesses can place browser-based voice calls from its chat. Calls use the microphone and WebRTC audio with STUN discovery; both people must be online in MeetInc and grant microphone access. Some restrictive networks may need a TURN relay for reliable connections. Incoming calls show in MeetInc and can also trigger a push notification on a subscribed device.
+
+Users can choose **Enable push notifications** in the app to allow browser notifications. New bookings, messages, and incoming calls are sent through Firebase Cloud Messaging using Cloud Functions. Background delivery requires browser notification permission and the device's push service to be available. Signing out removes that browser's subscription from the account. The Cloud Functions deployment is currently pending because Google Cloud reports the project's billing account is not open; activate billing before deploying the notification functions with `firebase deploy --only functions:notifyNewBooking,functions:notifyNewMessage,functions:notifyIncomingCall`.
+
 ## Firebase project
 
 - Project: `meetinc-9072a` (MeetInc)
@@ -42,8 +48,8 @@ Never put a Paystack secret in `public/app.js`, website HTML, or a public reposi
 
 ## Known limits
 
-- Browser alerts appear only while the business dashboard is open and the browser has granted notification permission; reliable background push needs a service worker and Firebase Cloud Messaging setup.
-- The "call" action opens the device's phone dialer. In-app voice calls are not implemented.
+- Voice calls use the microphone and WebRTC after both participants grant permission. Calls work best when both users are online; restrictive networks may require a TURN relay.
+- Push notification setup is present, but background delivery remains unavailable until the Firebase notification functions deploy successfully.
 - Customers suggest a time; businesses confirm or decline the request. This first version does not reserve a time slot against overlapping requests automatically.
 - Firebase Hosting is live at `https://meetinc-9072a.web.app`.
 - Branding is MeetInc with the V mark. Payments are not live until Firebase billing, Paystack credentials, webhook setup and the platform fee are configured.

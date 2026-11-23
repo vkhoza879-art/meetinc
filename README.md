@@ -2,6 +2,8 @@
 
 MeetInc is a Firebase-backed appointment and customer-request app for small businesses. Customers create an account, browse business categories, select an offer, describe what they need, and request a meeting time with a backup time. Businesses manage their profile, prices, working hours, meeting requests, and chat. Booking and message updates sync in real time when both users are online.
 
+The customer directory includes fictional sample businesses with sample logo marks, hours and prices so new users can explore the experience. Sample listings are clearly labelled and their booking flow is only a preview; they are not real businesses and requests are not sent. Live listings come from business profiles created in MeetInc.
+
 ## Firebase project
 
 - Project: `meetinc-9072a` (MeetInc)

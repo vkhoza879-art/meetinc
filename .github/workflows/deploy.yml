@@ -50,18 +50,7 @@ jobs:
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@15.37.0
 
-      - name: Deploy booking availability index
-        run: firebase deploy --only firestore:indexes --project meetinc-9072a --non-interactive
-
-      - name: Deploy booking and push notification functions
-        run: >-
-          firebase deploy
-          --only functions:getAvailableBookingSlots,functions:createBooking,functions:manageBooking,functions:notifyNewBooking,functions:notifyBookingUpdates,functions:notifyNewMessage,functions:notifyIncomingCall
-          --project meetinc-9072a
-          --non-interactive
-
-      - name: Deploy Firestore rules
-        run: firebase deploy --only firestore:rules --project meetinc-9072a --non-interactive
-
-      - name: Deploy Firebase Hosting
+      # Firebase Hosting and Firestore remain on the no-cost plan. Cloud Functions
+      # are kept out of this release because deploying/running them requires Blaze.
+      - name: Deploy billing-free web app
         run: firebase deploy --only hosting --project meetinc-9072a --non-interactive

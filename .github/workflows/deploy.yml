@@ -50,7 +50,13 @@ jobs:
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@15.37.0
 
+      - name: Create MeetInc Hosting site if needed
+        run: |
+          if ! firebase hosting:sites:get meetinc --project meetinc-9072a --json >/dev/null 2>&1; then
+            firebase hosting:sites:create meetinc --project meetinc-9072a --non-interactive
+          fi
+
       # Firebase Hosting and Firestore remain on the no-cost plan. Cloud Functions
       # are kept out of this release because deploying/running them requires Blaze.
       - name: Deploy billing-free web app
-        run: firebase deploy --only hosting --project meetinc-9072a --non-interactive
+        run: firebase deploy --only hosting:app,hosting:meetinc --project meetinc-9072a --non-interactive

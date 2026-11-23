@@ -1,5 +1,13 @@
 {
   "projects": {
     "default": "meetinc-9072a"
+  },
+  "targets": {
+    "meetinc-9072a": {
+      "hosting": {
+        "app": ["meetinc-9072a"],
+        "meetinc": ["meetinc"]
+      }
+    }
   }
 }

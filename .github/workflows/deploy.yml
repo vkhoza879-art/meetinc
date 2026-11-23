@@ -52,3 +52,10 @@ jobs:
 
       - name: Deploy Firebase Hosting
         run: firebase deploy --only hosting,firestore:rules --project meetinc-9072a --non-interactive
+
+      - name: Deploy push notification functions
+        run: >-
+          firebase deploy
+          --only functions:notifyNewBooking,functions:notifyNewMessage,functions:notifyIncomingCall
+          --project meetinc-9072a
+          --non-interactive

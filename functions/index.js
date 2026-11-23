@@ -15,7 +15,7 @@ const region = 'africa-south1';
 const paystackApi = 'https://api.paystack.co';
 const webAppUrl = 'https://meetinc-9072a.web.app/';
 
-async function notifyUser(uid, title, body, tag) {
+async function notifyUser(uid, title, body, tag, { type = 'update', urgent = false } = {}) {
   const tokens = await db.collection('pushTokens').where('ownerUid', '==', uid).get();
   if (tokens.empty) return;
   for (let i = 0; i < tokens.docs.length; i += 500) {
@@ -23,11 +23,29 @@ async function notifyUser(uid, title, body, tag) {
     const result = await getMessaging().sendEachForMulticast({
       tokens: batch.map(d => d.data().token),
       notification: { title, body },
-      data: { title, body, tag, url: webAppUrl },
+      data: { title, body, tag, url: webAppUrl, type },
       webpush: {
         headers: { Urgency: 'high', TTL: '3600' },
-        notification: { tag, icon: `${webAppUrl}icons/meetinc.svg` },
+        notification: {
+          tag,
+          icon: `${webAppUrl}icons/meetinc.svg`,
+          requireInteraction: urgent,
+          renotify: urgent,
+          vibrate: urgent ? [250, 120, 250, 500, 250] : [120, 80, 120]
+        },
         fcmOptions: { link: webAppUrl }
+      },
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: urgent ? 'meetinc_calls' : 'meetinc_updates',
+          sound: 'default',
+          notificationPriority: urgent ? 'PRIORITY_MAX' : 'PRIORITY_DEFAULT'
+        }
+      },
+      apns: {
+        headers: { 'apns-priority': urgent ? '10' : '5' },
+        payload: { aps: { sound: 'default', 'content-available': 1 } }
       }
     });
     const stale = result.responses.flatMap((response, index) => response.success ? [] :
@@ -56,7 +74,7 @@ exports.notifyNewMessage = onDocumentCreated({ document: 'bookings/{bookingId}/m
 exports.notifyIncomingCall = onDocumentCreated({ document: 'bookings/{bookingId}/calls/{callId}', region }, async event => {
   const call = event.data?.data();
   if (!call || call.status !== 'ringing' || !call.calleeUid) return;
-  await notifyUser(call.calleeUid, 'Incoming MeetInc voice call', `${call.callerName || 'Your MeetInc contact'} is calling. Open MeetInc to answer.`, `call-${event.params.callId}`);
+  await notifyUser(call.calleeUid, 'Incoming MeetInc voice call', `${call.callerName || 'Your MeetInc contact'} is calling. Open MeetInc to answer.`, `call-${event.params.callId}`, { type: 'call', urgent: true });
 });
 
 function feePercent() {

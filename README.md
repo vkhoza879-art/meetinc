@@ -6,9 +6,9 @@ The customer directory includes fictional sample businesses with sample logo mar
 
 ## Voice calls and push alerts
 
-After a real booking, customers and businesses can place browser-based voice calls from its chat. Calls use the microphone and WebRTC audio with STUN discovery; both people must be online in MeetInc and grant microphone access. Some restrictive networks may need a TURN relay for reliable connections. Incoming calls show in MeetInc and can also trigger a push notification on a subscribed device.
+After a real booking, customers and businesses can place browser-based voice calls from its chat. When MeetInc is open, an incoming call displays an answer/decline prompt and rings with sound and vibration. Calls use the microphone and WebRTC audio with STUN discovery; both people must be online in MeetInc and grant microphone access. Some restrictive networks may need a TURN relay for reliable connections. When MeetInc is in the background, a subscribed device receives a high-priority call alert with its system notification sound; this is not a native full-screen phone-call interface.
 
-Users can choose **Enable push notifications** in the app to allow browser notifications. New bookings, messages, and incoming calls are sent through Firebase Cloud Messaging using Cloud Functions. Background delivery requires browser notification permission and the device's push service to be available. Signing out removes that browser's subscription from the account. The Cloud Functions deployment is currently pending because Google Cloud reports the project's billing account is not open; activate billing before deploying the notification functions with `firebase deploy --only functions:notifyNewBooking,functions:notifyNewMessage,functions:notifyIncomingCall`.
+Each browser or installed app must choose **Enable push notifications** and grant notification permission. The deployment workflow publishes the Firebase Cloud Functions that send booking, message, and call alerts. Background delivery requires an active Firebase Blaze billing account, the GitHub deploy service account to have Cloud Functions deployment permissions, and the device push service to be available. Android notifications use dedicated update and call channels with vibration and sound. iOS background alerts also require an Apple Push Notifications key configured in Firebase. The installed Android app must be rebuilt to receive the native channel and listener changes.
 
 ## Native mobile app
 
@@ -63,8 +63,8 @@ Never put a Paystack secret in `public/app.js`, website HTML, or a public reposi
 
 ## Known limits
 
-- Voice calls use the microphone and WebRTC after both participants grant permission. Calls work best when both users are online; restrictive networks may require a TURN relay.
-- Push notification setup is present, but background delivery remains unavailable until the Firebase notification functions deploy successfully.
+- Voice calls use the microphone and WebRTC after both participants grant permission. Calls work best when both users are online; restrictive networks may require a TURN relay. In-app ringing works while MeetInc is open; background calls use a push alert rather than CallKit/Android Telecom integration.
+- Push delivery requires the notification Cloud Functions deployment to succeed and each device to opt in. Android installed-app channel changes require a newly built APK.
 - Android/iOS Capacitor project setup is documented in the Native mobile app section; app store distribution still requires platform-specific signing and store accounts.
 - Customers suggest a time; businesses confirm or decline the request. This first version does not reserve a time slot against overlapping requests automatically.
 - Firebase Hosting is live at `https://meetinc-9072a.web.app`.

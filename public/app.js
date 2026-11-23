@@ -35,7 +35,7 @@ const SAMPLE_BUSINESSES = [
   { id:'sample-homekind', isSample:true, name:'Homekind Projects', category:'Home & property', about:'Friendly first-step conversations for home refreshes and small projects.', offersText:'Project walk-through · R400 | Initial estimate · Free', workingDays:['Mon','Tue','Wed','Thu','Fri'], openTime:'08:00', closeTime:'16:00', meetingMinutes:45, backupTime:'13:00', currency:'R', logo:'⌂', logoClass:'homekind', offers:[{id:'homekind-walkthrough',name:'Project walk-through',price:'400.00'},{id:'homekind-estimate',name:'Initial estimate',price:'0.00'}] }
 ];
 const DAYS = [['Sun','Sunday'],['Mon','Monday'],['Tue','Tuesday'],['Wed','Wednesday'],['Thu','Thursday'],['Fri','Friday'],['Sat','Saturday']];
-const state = { user:null, profile:null, business:null, offers:[], businesses:[], bookings:[], roleChoice:null, authMode:'signup', view:'dashboard', selectedBusiness:null, selectedOffer:null, selectedChat:null, messages:[], unsubs:[], messageUnsubs:new Map(), callUnsubs:new Map(), callByBooking:new Map(), currentCall:null, answeringCallId:null, peer:null, localStream:null, remoteCandidateUnsub:null, pendingIce:[], pushTokenId:null, messaging:null, latestMessageIds:new Map(), unreadByBooking:new Map(), readyBookings:false, filter:'all', category:'', pendingSignup:false };
+const state = { user:null, profile:null, business:null, offers:[], businesses:[], bookings:[], roleChoice:null, authMode:'signup', view:'dashboard', selectedBusiness:null, selectedOffer:null, selectedChat:null, messages:[], unsubs:[], messageUnsubs:new Map(), callUnsubs:new Map(), callByBooking:new Map(), currentCall:null, answeringCallId:null, peer:null, localStream:null, remoteCandidateUnsub:null, pendingIce:[], pushTokenId:null, messaging:null, latestMessageIds:new Map(), unreadByBooking:new Map(), readyBookings:false, filter:'all', category:'', pendingSignup:false, ringContext:null, ringTimer:null };
 const $ = id => document.getElementById(id);
 $('payoutCard').hidden = !PAYMENTS_ENABLED;
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -65,17 +65,44 @@ async function syncPushSubscription(requestPermission=false){
     if(!await isSupported())throw new Error('This browser does not support push notifications.');
     const registration=await navigator.serviceWorker.register('/firebase-messaging-sw.js');
     token=await getToken(getMessaging(app),{vapidKey:FIREBASE_VAPID_KEY,serviceWorkerRegistration:registration});
-    if(!state.messaging){state.messaging=getMessaging(app);onMessage(state.messaging,()=>{});}
+    if(!state.messaging){state.messaging=getMessaging(app);onMessage(state.messaging,payload=>{
+      const title=payload.notification?.title||payload.data?.title||'MeetInc update';
+      const body=payload.notification?.body||payload.data?.body||'Open MeetInc to see what is new.';
+      toast(`${title}: ${body}`);
+      if(Notification.permission==='granted')new Notification(title,{body,icon:'/icons/meetinc.svg',tag:payload.data?.tag||'meetinc-update'});
+    });}
   }
   if(!token)throw new Error('Could not register this device for push notifications.');
   await savePushToken(token);
   return true;
 }
 window.addEventListener('meetinc-native-fcm-token',event=>{if(state.user&&typeof event.detail==='string')savePushToken(event.detail).catch(error=>console.warn('Could not refresh the native MeetInc push token.',error));});
+window.addEventListener('meetinc-native-notification',event=>{const message=event.detail||{};toast(`${message.title||'MeetInc update'}: ${message.body||'Open MeetInc to see what is new.'}`);});
 async function removePushSubscription(){if(!state.pushTokenId)return;try{await deleteDoc(doc(db,'pushTokens',state.pushTokenId));}catch(error){console.warn('Could not remove this device notification subscription.',error);}state.pushTokenId=null;}
 function currentCallRef(call){return doc(db,'bookings',call.bookingId,'calls',call.id);}
 function renderVoiceCallStatus(text,connected=false){$('voiceCallStatus').textContent=text;const ownCall=state.currentCall&&state.selectedChat?.id===state.currentCall.bookingId;$('startVoiceCall').hidden=Boolean(ownCall);$('endVoiceCall').hidden=!ownCall;$('voiceCallStatus').classList.toggle('call-connected',connected);}
-function showIncomingCall(booking,call){state.incomingCall={booking,call};$('incomingCallTitle').textContent=`${call.callerName||'MeetInc contact'} is calling`;$('incomingCallText').textContent=`${booking.businessName||'Appointment'} · ${booking.offerName||'Voice call'}`;$('incomingCall').hidden=false;}
+function stopIncomingRing(){clearTimeout(state.ringTimer);state.ringTimer=null;if('vibrate'in navigator)navigator.vibrate(0);if(state.ringContext){state.ringContext.close().catch(()=>{});state.ringContext=null;}}
+function ringIncomingCall(){
+  if(!state.incomingCall)return;
+  const context=state.ringContext;
+  if(context&&context.state!=='closed'){
+    if(context.state==='suspended')context.resume().catch(()=>{});
+    const now=context.currentTime;
+    [[660,0],[880,.18],[660,.52],[880,.70]].forEach(([frequency,offset])=>{
+      const oscillator=context.createOscillator(),gain=context.createGain();
+      oscillator.type='sine';oscillator.frequency.value=frequency;gain.gain.setValueAtTime(.0001,now+offset);gain.gain.exponentialRampToValueAtTime(.10,now+offset+.025);gain.gain.exponentialRampToValueAtTime(.0001,now+offset+.17);
+      oscillator.connect(gain);gain.connect(context.destination);oscillator.start(now+offset);oscillator.stop(now+offset+.19);
+    });
+  }
+  if('vibrate'in navigator)navigator.vibrate([240,140,240,750]);
+  state.ringTimer=setTimeout(ringIncomingCall,1900);
+}
+function startIncomingRing(){
+  stopIncomingRing();
+  try{const AudioContextType=window.AudioContext||window.webkitAudioContext;if(AudioContextType)state.ringContext=new AudioContextType();}catch(error){console.warn('Call audio alert is unavailable.',error);}
+  ringIncomingCall();
+}
+function showIncomingCall(booking,call){const isNew=state.incomingCall?.call.id!==call.id;state.incomingCall={booking,call};$('incomingCallTitle').textContent=`${call.callerName||'MeetInc contact'} is calling`;$('incomingCallText').textContent=`${booking.businessName||'Appointment'} · ${booking.offerName||'Voice call'}`;$('incomingCall').hidden=false;if(isNew)startIncomingRing();}
 function syncCallListeners(){
   const activeIds=new Set(state.bookings.map(booking=>booking.id));
   for(const [bookingId,unsub] of state.callUnsubs){if(!activeIds.has(bookingId)){unsub();state.callUnsubs.delete(bookingId);state.callByBooking.delete(bookingId);}}
@@ -83,7 +110,7 @@ function syncCallListeners(){
     const active=snapshot.docs.map(d=>({id:d.id,...d.data(),bookingId:booking.id})).filter(call=>['ringing','active'].includes(call.status)).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     const call=active[0];if(call)state.callByBooking.set(booking.id,call);else state.callByBooking.delete(booking.id);
     if(call?.status==='ringing'&&call.calleeUid===state.user?.uid&&state.currentCall?.id!==call.id&&state.answeringCallId!==call.id)showIncomingCall(booking,call);
-    else if(state.incomingCall?.booking.id===booking.id&&(!call||call.status!=='ringing'||state.incomingCall.call.id!==call.id)){$('incomingCall').hidden=true;state.incomingCall=null;}
+    else if(state.incomingCall?.booking.id===booking.id&&(!call||call.status!=='ringing'||state.incomingCall.call.id!==call.id)){$('incomingCall').hidden=true;state.incomingCall=null;stopIncomingRing();}
     if(call&&state.selectedChat?.id===booking.id&&state.currentCall?.id!==call.id){renderVoiceCallStatus(call.status==='ringing'?'Incoming voice call…':'Voice call in progress',call.status==='active');$('startVoiceCall').hidden=true;}
     if(state.currentCall?.id===call?.id){renderVoiceCallStatus(call.status==='ringing'?'Calling…':'Voice call in progress',call.status==='active');if(state.currentCall.role==='caller'&&call.answer&&!state.peer?.remoteDescription)applyCallAnswer(call).catch(error=>toast(friendlyError(error)));}
     if(state.currentCall?.bookingId===booking.id&&state.currentCall.id!==call?.id)finishLocalCall('The other person ended the call.');
@@ -109,11 +136,11 @@ async function flushLocalIce(){const call=state.currentCall;if(!call)return;call
 async function applyCallAnswer(call){if(!state.peer||state.peer.remoteDescription||!call.answer)return;await state.peer.setRemoteDescription(new RTCSessionDescription(call.answer));await flushRemoteIce();}
 function finishLocalCall(message='Call ended.'){if(state.remoteCandidateUnsub){state.remoteCandidateUnsub();state.remoteCandidateUnsub=null;}if(state.peer){state.peer.ontrack=null;state.peer.close();state.peer=null;}if(state.localStream){state.localStream.getTracks().forEach(track=>track.stop());state.localStream=null;}state.currentCall=null;state.pendingIce=[];$('remoteCallAudio').srcObject=null;renderVoiceCallStatus(message);}
 async function startVoiceCall(){const booking=state.selectedChat;if(!booking||!state.user)return;if(booking.isSample){toast('Sample profiles cannot receive calls.');return;}if(state.currentCall||state.callByBooking.has(booking.id)){toast('A voice call is already in progress for this appointment.');return;}const calleeUid=state.profile.role==='business'?booking.customerUid:booking.businessId;try{const callRef=doc(collection(db,'bookings',booking.id,'calls'));const call={bookingId:booking.id,id:callRef.id};const peer=await setupVoicePeer(booking,call,'caller');const offer=await peer.createOffer();await peer.setLocalDescription(offer);await setDoc(callRef,{callerUid:state.user.uid,calleeUid,callerName:state.profile.name,status:'ringing',offer:{type:offer.type,sdp:offer.sdp},createdAt:serverTimestamp(),updatedAt:serverTimestamp()});watchRemoteIce(call,'caller');await flushLocalIce();toast(`Calling ${state.profile.role==='business'?booking.customerName:booking.businessName}…`);}catch(error){finishLocalCall('Call could not start.');toast(error.name==='NotAllowedError'?'Allow microphone access to make a voice call.':friendlyError(error));}}
-async function answerVoiceCall(){const incoming=state.incomingCall;if(!incoming)return;const {booking,call}=incoming;$('incomingCall').hidden=true;state.incomingCall=null;state.answeringCallId=call.id;try{await openChat(booking);const peer=await setupVoicePeer(booking,call,'callee');await peer.setRemoteDescription(new RTCSessionDescription(call.offer));await flushRemoteIce();const answer=await peer.createAnswer();await peer.setLocalDescription(answer);await setDoc(currentCallRef(call),{answer:{type:answer.type,sdp:answer.sdp},status:'active',updatedAt:serverTimestamp()},{merge:true});await flushLocalIce();toast('Voice call connected');}catch(error){await setDoc(currentCallRef(call),{status:'declined',updatedAt:serverTimestamp()},{merge:true}).catch(()=>{});finishLocalCall('Call could not connect.');toast(error.name==='NotAllowedError'?'Allow microphone access to answer the call.':friendlyError(error));}finally{state.answeringCallId=null;}}
-async function declineVoiceCall(){const incoming=state.incomingCall;if(!incoming)return;state.incomingCall=null;$('incomingCall').hidden=true;try{await setDoc(currentCallRef(incoming.call),{status:'declined',updatedAt:serverTimestamp()},{merge:true});}catch(error){toast(friendlyError(error));}}
+async function answerVoiceCall(){const incoming=state.incomingCall;if(!incoming)return;stopIncomingRing();$('incomingCall').hidden=true;state.incomingCall=null;state.answeringCallId=incoming.call.id;const {booking,call}=incoming;try{await openChat(booking);const peer=await setupVoicePeer(booking,call,'callee');await peer.setRemoteDescription(new RTCSessionDescription(call.offer));await flushRemoteIce();const answer=await peer.createAnswer();await peer.setLocalDescription(answer);await setDoc(currentCallRef(call),{answer:{type:answer.type,sdp:answer.sdp},status:'active',updatedAt:serverTimestamp()},{merge:true});await flushLocalIce();toast('Voice call connected');}catch(error){await setDoc(currentCallRef(call),{status:'declined',updatedAt:serverTimestamp()},{merge:true}).catch(()=>{});finishLocalCall('Call could not connect.');toast(error.name==='NotAllowedError'?'Allow microphone access to answer the call.':friendlyError(error));}finally{state.answeringCallId=null;}}
+async function declineVoiceCall(){const incoming=state.incomingCall;if(!incoming)return;stopIncomingRing();state.incomingCall=null;$('incomingCall').hidden=true;try{await setDoc(currentCallRef(incoming.call),{status:'declined',updatedAt:serverTimestamp()},{merge:true});}catch(error){toast(friendlyError(error));}}
 async function endVoiceCall(){const call=state.currentCall;if(!call)return;try{await setDoc(currentCallRef(call),{status:'ended',updatedAt:serverTimestamp()},{merge:true});}catch(error){toast(friendlyError(error));}finishLocalCall('Call ended.');}
 function showGate(){ $('gate').hidden=false; $('workspace').hidden=true; $('topUser').hidden=true; $('authBox').hidden=true; document.querySelectorAll('.rolecard').forEach(x=>x.hidden=false); }
-function clearListeners(){ state.unsubs.forEach(fn=>fn()); state.unsubs=[]; state.messageUnsubs.forEach(fn=>fn()); state.messageUnsubs.clear(); state.callUnsubs.forEach(fn=>fn()); state.callUnsubs.clear(); state.callByBooking.clear(); if(state.remoteCandidateUnsub){state.remoteCandidateUnsub();state.remoteCandidateUnsub=null;} if(state.peer)state.peer.close(); if(state.localStream)state.localStream.getTracks().forEach(track=>track.stop()); state.peer=null;state.localStream=null;state.currentCall=null;state.answeringCallId=null;state.incomingCall=null;$('incomingCall').hidden=true;$('remoteCallAudio').srcObject=null;state.latestMessageIds.clear(); state.unreadByBooking.clear(); state.readyBookings=false; }
+function clearListeners(){ stopIncomingRing();state.unsubs.forEach(fn=>fn()); state.unsubs=[]; state.messageUnsubs.forEach(fn=>fn()); state.messageUnsubs.clear(); state.callUnsubs.forEach(fn=>fn()); state.callUnsubs.clear(); state.callByBooking.clear(); if(state.remoteCandidateUnsub){state.remoteCandidateUnsub();state.remoteCandidateUnsub=null;} if(state.peer)state.peer.close(); if(state.localStream)state.localStream.getTracks().forEach(track=>track.stop()); state.peer=null;state.localStream=null;state.currentCall=null;state.answeringCallId=null;state.incomingCall=null;$('incomingCall').hidden=true;$('remoteCallAudio').srcObject=null;state.latestMessageIds.clear(); state.unreadByBooking.clear(); state.readyBookings=false; }
 function navItems(){ return state.profile.role==='business' ? [['dashboard','▦','Overview'],['requests','◷','Requests'],['businessProfile','▣','Business profile'],['offers','◇','Offers & prices'],['hours','◷','Hours & appointments'],['chat','◌','Chat & call'],['account','◉','My profile']] : [['dashboard','▦','Overview'],['discover','⌕','Find a business'],['requests','◷','My requests'],['chat','◌','Chat & call'],['account','◉','My profile']]; }
 function unreadTotal(){return [...state.unreadByBooking.values()].reduce((sum,count)=>sum+count,0);}
 function renderNav(){ const items=navItems(); const badge=unreadTotal(); const html=items.map(([id,icon,label])=>`<button data-view="${id}" class="${id===state.view?'on':''}"><span class="ic">${icon}</span>${label}${id==='chat'&&badge?`<span class="nav-badge">${badge>9?'9+':badge}</span>`:''}</button>`).join(''); $('nav').innerHTML=html; $('mobileNav').innerHTML=items.map(([id,,label])=>`<button data-view="${id}" class="${id===state.view?'on':''}">${label}${id==='chat'&&badge?` <span class="nav-badge">${badge>9?'9+':badge}</span>`:''}</button>`).join(''); document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view)); document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>setView(b.dataset.go)); }

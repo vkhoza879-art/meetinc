@@ -29,13 +29,16 @@ service cloud.firestore {
         && validAvatarDataField('avatarData') && validAvatarPresetField('avatarPreset');
     }
     function validBusiness(uid) {
-      return request.resource.data.keys().hasOnly(['ownerUid', 'name', 'category', 'about', 'offersText', 'phone', 'currency', 'photoData', 'avatarPreset', 'workingDays', 'openTime', 'closeTime', 'meetingMinutes', 'slotMinutes', 'backupTime', 'createdAt', 'updatedAt'])
+      return request.resource.data.keys().hasOnly(['ownerUid', 'name', 'category', 'about', 'offersText', 'adActive', 'adHeadline', 'adCopy', 'phone', 'currency', 'photoData', 'avatarPreset', 'workingDays', 'openTime', 'closeTime', 'meetingMinutes', 'slotMinutes', 'backupTime', 'createdAt', 'updatedAt'])
         && request.resource.data.keys().hasAll(['ownerUid', 'name', 'category', 'about', 'offersText', 'phone', 'currency', 'workingDays', 'openTime', 'closeTime', 'meetingMinutes', 'slotMinutes', 'backupTime', 'createdAt', 'updatedAt'])
         && request.resource.data.ownerUid == uid
         && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 120
         && request.resource.data.category is string && request.resource.data.category.size() > 0 && request.resource.data.category.size() <= 80
         && request.resource.data.about is string && request.resource.data.about.size() <= 900
         && request.resource.data.offersText is string && request.resource.data.offersText.size() <= 900
+        && (!('adActive' in request.resource.data) || request.resource.data.adActive is bool)
+        && (!('adHeadline' in request.resource.data) || (request.resource.data.adHeadline is string && request.resource.data.adHeadline.size() <= 80))
+        && (!('adCopy' in request.resource.data) || (request.resource.data.adCopy is string && request.resource.data.adCopy.size() <= 180))
         && request.resource.data.phone is string && request.resource.data.phone.size() <= 40
         && request.resource.data.currency is string && request.resource.data.currency.size() <= 8
         && request.resource.data.workingDays is list && request.resource.data.workingDays.size() <= 7
@@ -149,12 +152,13 @@ service cloud.firestore {
         }
         allow get, list: if canReadBooking(booking());
         allow create: if signedIn()
-          && request.resource.data.keys().hasOnly(['callerUid', 'calleeUid', 'callerName', 'status', 'offer', 'createdAt', 'updatedAt'])
+          && request.resource.data.keys().hasOnly(['callerUid', 'calleeUid', 'callerName', 'status', 'mediaType', 'offer', 'createdAt', 'updatedAt'])
           && request.resource.data.keys().hasAll(['callerUid', 'calleeUid', 'callerName', 'status', 'offer', 'createdAt', 'updatedAt'])
           && canReadBooking(booking()) && request.resource.data.callerUid == request.auth.uid
           && request.resource.data.calleeUid == (request.auth.uid == booking().customerUid ? booking().businessId : booking().customerUid)
           && request.resource.data.callerName is string && request.resource.data.callerName.size() > 0 && request.resource.data.callerName.size() <= 80
           && request.resource.data.status == 'ringing' && validDescription(request.resource.data.offer)
+          && (!('mediaType' in request.resource.data) || request.resource.data.mediaType in ['audio', 'video'])
           && request.resource.data.createdAt is timestamp && request.resource.data.updatedAt is timestamp;
         allow update: if callParticipant(resource.data)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answer', 'status', 'updatedAt'])

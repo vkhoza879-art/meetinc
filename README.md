@@ -75,3 +75,11 @@ Never put a Paystack secret in `public/app.js`, website HTML, or a public reposi
 - Branding is MeetInc with the V mark. Payments are not live until Firebase billing, Paystack credentials, webhook setup and the platform fee are configured.
 - Search crawler guidance is published in `public/robots.txt`, with the public landing page listed in `public/sitemap.xml`. Ownership was verified in Google Search Console and the sitemap was submitted. Search Console initially reported it could not read the sitemap even though the public URL returns successfully; Google may need time to retry it.
 - Google Search Console reported the homepage is not yet indexed. A manual indexing request could not be submitted because the account hit Google's daily request quota; retry the request tomorrow in URL Inspection.
+
+## New calling and discovery additions
+
+- Appointment chats now offer direct one-to-one audio and video calls. Video requires a camera and microphone and works best over HTTPS; calls use the existing WebRTC signaling and STUN setup.
+- The Group button opens a randomly named Jitsi Meet room and sends its link into the appointment chat. Group calls are hosted by Jitsi; anyone who gets the link can join, so do not use the room for confidential conversations.
+- Businesses can choose the Business to business category for B2B discovery.
+- Businesses can opt into a free sponsored listing with a short headline and promotional message. Sponsored cards are labelled and shown first in discovery.
+- Firestore rules allow the promotion fields and one-to-one video call signaling; they were deployed with this release.
